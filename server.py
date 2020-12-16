@@ -10,9 +10,14 @@ from flask_restful import Resource, Api, reqparse
 from transformers import pipeline
 
 import html2text
+import requests
+import time
 
 nlp = pipeline("question-answering")
 context_parser = reqparse.RequestParser()
+
+h = html2text.HTML2Text()
+ignore_links = True
 
 app = Flask(__name__)
 api = Api(app)
@@ -65,27 +70,54 @@ class Context(Resource):
 
 test_parser = reqparse.RequestParser()
 test_parser.add_argument('context')
+test_parser.add_argument('url')
 test_parser.add_argument('question')
+test_parser.add_argument('questions')
 
 class Ask(Resource):
     """Test transformers."""
+
+    def get(self):
+        """Return a form to ask questions."""
+        # Not done yet, cause lazy to do front
+        return render_template('ask.html')
+
     def post(self):
         """Ask a question about a context."""
+        t = time.time()
         args = test_parser.parse_args()
-        if 'context' in args:
+        print(args)
+        d = {}
+
+        if args['context']:
             context = args['context']
-        elif 'url' in args:
+        elif args['url']:
             url = args['url']
-            text = requests.get(url).text
-            context = h2t.handle(text)
+            html= requests.get(url).text
+            context = h.handle(html)
+            # d['context'] = context
+            print('context', context)
         else:
             raise Exception
-        if 'question' in args:
-            response = nlp(args['question'], context)
-        elif 'questions' in args:
-            response = [npl(question, context) for question in args['questions']]
+
+        if args['question']:
+            question = args['question']
+            response = nlp(
+                question=question,
+                context=context
+            )
+        elif args['questions']:
+            response = [
+                nlp(
+                    question=question,
+                    context=context
+                ) for question in args['questions']
+            ]
         else:
             raise Exception
+
+        d['duration'] = time.time() - t
+        response.update(d)
         return response
 # api.add_resource(QuestionAnswering, '/ask/<string:id>/')
 # api.add_resource(Context, '/context/<string:id>')
