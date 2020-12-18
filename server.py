@@ -13,14 +13,16 @@ import html2text
 import requests
 import time
 
-nlp = pipeline("question-answering")
-context_parser = reqparse.RequestParser()
+ask = pipeline("question-answering")
+summarize = pipeline("summarization")
 
 h = html2text.HTML2Text()
 ignore_links = True
 
 app = Flask(__name__)
 api = Api(app)
+
+context_parser = reqparse.RequestParser()
 
 class HelloWorld(Resource):
     """Implement flask restful resource for testing."""
@@ -75,7 +77,7 @@ test_parser.add_argument('question')
 test_parser.add_argument('questions')
 
 class Ask(Resource):
-    """Test transformers."""
+    """Ask questions on a text."""
 
     def get(self):
         """Return a form to ask questions."""
@@ -102,13 +104,13 @@ class Ask(Resource):
 
         if args['question']:
             question = args['question']
-            response = nlp(
+            response = ask(
                 question=question,
                 context=context
             )
         elif args['questions']:
             response = [
-                nlp(
+                ask(
                     question=question,
                     context=context
                 ) for question in args['questions']
@@ -122,9 +124,40 @@ class Ask(Resource):
 # api.add_resource(QuestionAnswering, '/ask/<string:id>/')
 # api.add_resource(Context, '/context/<string:id>')
 
+summarize_parser = reqparse.RequestParser()
+summarize_parser.add_argument('context')
+
+class Summarize:
+    """Summarize a text."""
+
+    def post(self):
+        """Post a text to summarize."""
+        response = {}
+        args = test_parser.parse_args()
+        if args['context']:
+            context = args['context']
+        elif args['url']:
+            context = requests.get(args['url']).text
+        else:
+            raise Exception("No context given.")
+        max_length = args['max_length']
+        min_length = args['min_length']
+        do_sample = args['do_sample']
+
+        response.update(
+            summarize(
+                context,
+                max_length=max_length,
+                min_length=min_length,
+                do_sample=do_sample
+            )
+        )
+        return response
+
 
 api.add_resource(HelloWorld, '/')
 api.add_resource(Ask, '/ask')
+api.add_ressource(Summarize, '/sum-up')
 
 if __name__ == '__main__':
     app.run(debug=True)
